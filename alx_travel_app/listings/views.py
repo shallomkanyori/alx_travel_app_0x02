@@ -5,7 +5,52 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Listing, Booking, Review
 from django.contrib.auth.models import User
-from .serializers import ListingSerializer, BookingSerializer
+from .serializers import ListingSerializer, BookingSerializer, PaymentSerializer
+from django.conf import settings
+import requests
+import json
+import uuid
+
+@api_view(['POST'])
+def initiate_payment(request):
+    url = "https://api.chapa.co/v1/transaction/initialize"
+    body = json.loads(request.body.decode('utf-8'))
+    user = request.user
+    transaction_reference = f"ALX_travelapp-{uuid.uuid4().hex}"
+
+    payload = {
+        "amount": body['amount'],
+        "currency": "ETB",
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "tx_ref": transaction_reference,
+        "callback_url": "http://localhost:8000/api/v1/verify-payment"
+        "customization": {
+            "title": "ALX Travel App",
+            "description": "Payment for booking a property",
+        }
+    }
+
+    headers = {
+        'Authorization': f'Bearer {settings.CHAPA_SECRET_KEY}',
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    response_data = response.json()
+
+    PaymentSerializer.create({
+        'booking_id': body['booking_id'],
+        'amount': body['amount'],
+        'payment_method': 'chapa',
+        'payment_status': 'pending',
+        'transaction_id': transaction_reference
+    })
+    
+
+    redirect_url = response_data['data']['checkout_url']
+    return Response({'redirect_url': redirect_url, 'transaction_reference': transaction_reference})
 
 class ListingViewSet(viewsets.ModelViewSet):
     queryset = Listing.objects.all()
