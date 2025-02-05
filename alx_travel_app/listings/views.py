@@ -7,6 +7,7 @@ from .models import Listing, Booking, Review
 from django.contrib.auth.models import User
 from .serializers import ListingSerializer, BookingSerializer, PaymentSerializer
 from django.conf import settings
+from .tasks import send_payment_email
 import requests
 import json
 import uuid
@@ -68,6 +69,9 @@ def verify_payment(request, tx_ref):
     serializer.is_valid(raise_exception=True)
     serializer.save()
 
+    if payment_status == 'completed':
+        send_payment_email.delay(tx_ref)
+
     return Response(response_data)
 
 class ListingViewSet(viewsets.ModelViewSet):
@@ -104,6 +108,16 @@ class BookingViewSet(viewsets.ModelViewSet):
         )
 
         booking.save()
+
+        # Initiate payment
+        payload = {
+            'booking_id': booking.booking_id,
+            'amount': total_price
+        }
+        response = initiate_payment(request, payload)
+
+        response_data['booking'] = BookingSerializer(booking).data
+        response_data['payment'] = response.data
 
         return Response(BookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
