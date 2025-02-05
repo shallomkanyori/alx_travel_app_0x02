@@ -25,7 +25,7 @@ def initiate_payment(request):
         "last_name": user.last_name,
         "email": user.email,
         "tx_ref": transaction_reference,
-        "callback_url": "http://localhost:8000/api/v1/verify-payment"
+        "callback_url": request.build_absolute_uri(f'/payment/verify/{transaction_reference}'),
         "customization": {
             "title": "ALX Travel App",
             "description": "Payment for booking a property",
@@ -44,13 +44,31 @@ def initiate_payment(request):
         'booking_id': body['booking_id'],
         'amount': body['amount'],
         'payment_method': 'chapa',
-        'payment_status': 'pending',
         'transaction_id': transaction_reference
     })
-    
 
-    redirect_url = response_data['data']['checkout_url']
-    return Response({'redirect_url': redirect_url, 'transaction_reference': transaction_reference})
+
+    response_data['tx_ref'] = transaction_reference
+    return Response(response_data)
+
+@api_view(['GET'])
+def verify_payment(request, tx_ref):
+    url = f"https://api.chapa.co/v1/transaction/verify/{tx_ref}"
+    payload = ''
+    headers = {
+        'Authorization': f'Bearer {settings.CHAPA_SECRET_KEY}'
+    }
+
+    response = requests.get(url, headers=headers, data=payload)
+    response_data = response.json()
+
+    payment = PaymentSerializer.get_by_transaction_id(tx_ref)
+    payment_status = response_data['status'] === 'success' ? 'completed' : 'failed'
+    serializer = PaymentSerializer(payment, data={'payment_status': payment_status}, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+
+    return Response(response_data)
 
 class ListingViewSet(viewsets.ModelViewSet):
     queryset = Listing.objects.all()

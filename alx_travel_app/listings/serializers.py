@@ -21,3 +21,6 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
+    
+    def get_by_transaction_id(self, transaction_id):
+        return Payment.objects.get(transaction_id=transaction_id)

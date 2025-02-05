@@ -36,10 +36,16 @@ class Review(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed')
+    ]
+
     payment_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     booking_id = models.ForeignKey('Booking', on_delete=models.CASCADE)
     payment_date = models.DateTimeField(auto_now_add=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=50)
-    payment_status = models.CharField(max_length=50)
+    payment_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
     transaction_id = models.CharField(max_length=255)
